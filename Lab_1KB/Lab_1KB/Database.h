@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <string>
 #include "User.h"
 #include "sqlite3.h"
@@ -7,6 +7,7 @@ class Database {
 private:
     sqlite3* db;
     bool executeSQL(const std::string& sql);
+    bool loadCommonPasswords(const std::string& filePath);
 
 public:
     Database(const std::string& dbName = "users.db");
@@ -19,4 +20,5 @@ public:
     bool userExists(const std::string& username);
     void showAllUsers();
     bool isOpen() const;
+    bool isCommonPassword(const std::string& password);
 };

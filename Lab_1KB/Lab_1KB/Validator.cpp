@@ -1,83 +1,41 @@
-#include "Validator.h"
+Ôªø#include "Validator.h"
 #include <iostream>
 #include <cctype>
+#include <regex>
 
 using namespace std;
 
-bool Validator::validateUsername(const string& username) {
+bool Validator::validateUsername(const std::string& username) {
     if (username.empty()) {
-        cout << "ÀÓ„ËÌ ÌÂ ÏÓÊÂÚ ·˚Ú¸ ÔÛÒÚ˚Ï\n";
+        cout << "–õ–æ–≥–∏–Ω –Ω–µ –º–æ–∂–µ—Ç –±—ã—Ç—å –ø—É—Å—Ç—ã–º\n";
         return false;
     }
-    if (username.length() < 3) {
-        cout << "ÀÓ„ËÌ ‰ÓÎÊÂÌ ÒÓ‰ÂÊ‡Ú¸ ÏËÌËÏÛÏ 3 ÒËÏ‚ÓÎ‡\n";
+    if (utf8_length(username) < 3) {
+        cout << "–õ–æ–≥–∏–Ω –¥–æ–ª–∂–µ–Ω —Å–æ–¥–µ—Ä–∂–∞—Ç—å –º–∏–Ω–∏–º—É–º 3 —Å–∏–º–≤–æ–ª–∞\n";
         return false;
     }
-    if (username.length() > 20) {
-        cout << "ÀÓ„ËÌ ‰ÓÎÊÂÌ ÒÓ‰ÂÊ‡Ú¸ Ï‡ÍÒËÏÛÏ 20 ÒËÏ‚ÓÎÓ‚\n";
+    if (containsKeyboardPattern(username)) {
+        cout << "–õ–æ–≥–∏–Ω —Å–æ–¥–µ—Ä–∂–∏—Ç –æ—á–µ–≤–∏–¥–Ω—É—é –∫–ª–∞–≤–∏–∞—Ç—É—Ä–Ω—É—é –ø–æ—Å–ª–µ–¥–æ–≤–∞—Ç–µ–ª—å–Ω–æ—Å—Ç—å\n";
         return false;
-    }
-    if (username.find(' ') != string::npos) {
-        cout << "ÀÓ„ËÌ ÌÂ ‰ÓÎÊÂÌ ÒÓ‰ÂÊ‡Ú¸ ÔÓ·ÂÎ˚\n";
-        return false;
-    }
-    if (username.find(',') != string::npos) {
-        cout << "ÀÓ„ËÌ ÌÂ ‰ÓÎÊÂÌ ÒÓ‰ÂÊ‡Ú¸ Á‡ÔˇÚÛ˛\n";
-        return false;
-    }
-    for (char c : username) {
-        if (!isalnum(c) && c != '_') {
-            cout << "ÀÓ„ËÌ ‰ÓÎÊÂÌ ÒÓ‰ÂÊ‡Ú¸ ÚÓÎ¸ÍÓ ·ÛÍ‚˚, ˆËÙ˚ Ë '_'\n";
-            return false;
-        }
     }
     return true;
 }
 
 bool Validator::validatePassword(const string& password) {
     if (password.empty()) {
-        cout << "œ‡ÓÎ¸ ÌÂ ÏÓÊÂÚ ·˚Ú¸ ÔÛÒÚ˚Ï\n";
+        cout << "–ü–∞—Ä–æ–ª—å –Ω–µ –º–æ–∂–µ—Ç –±—ã—Ç—å –ø—É—Å—Ç—ã–º\n";
         return false;
     }
-    if (password.length() < 8) {
-        cout << "œ‡ÓÎ¸ ‰ÓÎÊÂÌ ÒÓ‰ÂÊ‡Ú¸ ÏËÌËÏÛÏ 8 ÒËÏ‚ÓÎÓ‚\n";
+    if (containsKeyboardPattern(password)) {
+        cout << "–ü–∞—Ä–æ–ª—å —Å–æ–¥–µ—Ä–∂–∏—Ç –æ—á–µ–≤–∏–¥–Ω—É—é –∫–ª–∞–≤–∏–∞—Ç—É—Ä–Ω—É—é –ø–æ—Å–ª–µ–¥–æ–≤–∞—Ç–µ–ª—å–Ω–æ—Å—Ç—å\n";
         return false;
     }
-    if (password.length() > 50) {
-        cout << "œ‡ÓÎ¸ ‰ÓÎÊÂÌ ÒÓ‰ÂÊ‡Ú¸ Ï‡ÍÒËÏÛÏ 50 ÒËÏ‚ÓÎÓ‚\n";
+    if (hasRepeatedChars(password)) {
+        cout << "–ü–∞—Ä–æ–ª—å —Å–æ–¥–µ—Ä–∂–∏—Ç —Ç—Ä–∏ –æ–¥–∏–Ω–∞–∫–æ–≤—ã—Ö —Å–∏–º–≤–æ–ª–∞ –ø–æ–¥—Ä—è–¥\n";
         return false;
     }
-    if (password.find(' ') != string::npos) {
-        cout << "œ‡ÓÎ¸ ÌÂ ‰ÓÎÊÂÌ ÒÓ‰ÂÊ‡Ú¸ ÔÓ·ÂÎ˚\n";
-        return false;
-    }
-    if (password.find(',') != string::npos) {
-        cout << "œ‡ÓÎ¸ ÌÂ ‰ÓÎÊÂÌ ÒÓ‰ÂÊ‡Ú¸ Á‡ÔˇÚÛ˛\n";
-        return false;
-    }
-
-    bool hasUpper = false, hasLower = false, hasDigit = false, hasSpecial = false;
-    for (char c : password) {
-        if (c >= 'A' && c <= 'Z') hasUpper = true;
-        else if (c >= 'a' && c <= 'z') hasLower = true;
-        else if (c >= '0' && c <= '9') hasDigit = true;
-        else hasSpecial = true;
-    }
-
-    if (!hasUpper) {
-        cout << "œ‡ÓÎ¸ ‰ÓÎÊÂÌ ÒÓ‰ÂÊ‡Ú¸ Á‡„Î‡‚ÌÛ˛ ·ÛÍ‚Û\n";
-        return false;
-    }
-    if (!hasLower) {
-        cout << "œ‡ÓÎ¸ ‰ÓÎÊÂÌ ÒÓ‰ÂÊ‡Ú¸ ÒÚÓ˜ÌÛ˛ ·ÛÍ‚Û\n";
-        return false;
-    }
-    if (!hasDigit) {
-        cout << "œ‡ÓÎ¸ ‰ÓÎÊÂÌ ÒÓ‰ÂÊ‡Ú¸ ˆËÙÛ\n";
-        return false;
-    }
-    if (!hasSpecial) {
-        cout << "œ‡ÓÎ¸ ‰ÓÎÊÂÌ ÒÓ‰ÂÊ‡Ú¸ ÒÔÂˆË‡Î¸Ì˚È ÒËÏ‚ÓÎ\n";
+    if (containsYear(password)) {
+        cout << "–ü–∞—Ä–æ–ª—å —Å–æ–¥–µ—Ä–∂–∏—Ç –≥–æ–¥ ‚Äî —ç—Ç–æ —Å–ª–∏—à–∫–æ–º –ø—Ä–µ–¥—Å–∫–∞–∑—É–µ–º–æ\n";
         return false;
     }
     return true;
@@ -85,7 +43,7 @@ bool Validator::validatePassword(const string& password) {
 
 bool Validator::validatePasswordMatch(const string& password, const string& confirmPassword) {
     if (password != confirmPassword) {
-        cout << "œ‡ÓÎË ÌÂ ÒÓ‚Ô‡‰‡˛Ú\n";
+        cout << "–ü–∞—Ä–æ–ª–∏ –Ω–µ —Å–æ–≤–ø–∞–¥–∞—é—Ç\n";
         return false;
     }
     return true;
@@ -95,9 +53,75 @@ bool Validator::isReservedUsername(const string& username) {
     string reserved[] = { "admin", "root", "system", "user", "test" };
     for (const string& reservedName : reserved) {
         if (username == reservedName) {
-            cout << "ÀÓ„ËÌ '" << reservedName << "' Á‡ÂÁÂ‚ËÓ‚‡Ì\n";
+            cout << "–õ–æ–≥–∏–Ω '" << reservedName << "' –∑–∞—Ä–µ–∑–µ—Ä–≤–∏—Ä–æ–≤–∞–Ω\n";
             return true;
         }
     }
     return false;
+}
+
+bool Validator::containsKeyboardPattern(const std::string& input) {
+    if (input.empty()) return false;
+
+    // –ü—Ä–∏–≤–æ–¥–∏–º –∫ –Ω–∏–∂–Ω–µ–º—É —Ä–µ–≥–∏—Å—Ç—Ä—É –¥–ª—è —Å—Ä–∞–≤–Ω–µ–Ω–∏—è
+    std::string lower = input;
+    for (char& c : lower) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+
+    // –ò–∑–≤–µ—Å—Ç–Ω—ã–µ –∫–ª–∞–≤–∏–∞—Ç—É—Ä–Ω—ã–µ –ø–æ—Å–ª–µ–¥–æ–≤–∞—Ç–µ–ª—å–Ω–æ—Å—Ç–∏
+    static const char* patterns[] = {
+        // –í–µ—Ä—Ö–Ω–∏–π —Ä—è–¥ QWERTY
+        "qwertyuiop", "qwerty", "qwert", "werty",
+        // –°—Ä–µ–¥–Ω–∏–π —Ä—è–¥ ASDF
+        "asdfghjkl", "asdfgh", "asdf", "sdfg",
+        // –ù–∏–∂–Ω–∏–π —Ä—è–¥ ZXCVB
+        "zxcvbnm", "zxcvbn", "zxcvb", "xcvbn",
+        // –¶–∏—Ñ—Ä—ã
+        "1234567890", "123456789", "12345678",
+        "1234567", "123456", "12345",
+        // –î–∏–∞–≥–æ–Ω–∞–ª–∏
+        "1qaz2wsx", "qazwsx", "1q2w3e", "1q2w3e4r",
+        "q1w2e3", "q1w2e3r4",
+        // –õ–µ—Å–µ–Ω–∫–∏
+        "1qaz", "2wsx", "3edc", "4rfv",
+        "zaq1", "xsw2", "cde3", "vfr4",
+        // –ß–∞—Å—Ç—ã–µ –∫–æ—Ä–æ—Ç–∫–∏–µ
+        "qqq", "www", "eee", "aaa", "zzz", "111", "000"
+    };
+
+    for (const char* pattern : patterns) {
+        if (lower.find(pattern) != std::string::npos) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Validator::hasRepeatedChars(const std::string& input) {
+    // –õ–æ–≤–∏—Ç —Ç—Ä–∏ –∏ –±–æ–ª–µ–µ –æ–¥–∏–Ω–∞–∫–æ–≤—ã—Ö —Å–∏–º–≤–æ–ª–∞ –ø–æ–¥—Ä—è–¥: aaa, 111, !!!
+    // (.)  ‚Äî –ª—é–±–æ–π —Å–∏–º–≤–æ–ª, –∑–∞–ø–æ–º–∏–Ω–∞–µ–º –µ–≥–æ –∫–∞–∫ –≥—Ä—É–ø–ø—É ‚Ññ1
+    // \1\1 ‚Äî –µ—â—ë –¥–≤–∞ —Ç–∞–∫–∏—Ö –∂–µ —Å–∏–º–≤–æ–ª–∞
+    static const std::regex re(R"((.)\1\1)");
+    return std::regex_search(input, re);
+}
+
+bool Validator::containsYear(const std::string& input) {
+    // –õ–æ–≤–∏—Ç –≥–æ–¥ –æ—Ç 1900 –¥–æ 2099 –∫–∞–∫ –æ—Ç–¥–µ–ª—å–Ω–æ–µ —Å–ª–æ–≤–æ
+    // \b      ‚Äî –≥—Ä–∞–Ω–∏—Ü–∞ —Å–ª–æ–≤–∞
+    // (19|20) ‚Äî 19 –∏–ª–∏ 20
+    // \d{2}   ‚Äî –¥–≤–µ —Ü–∏—Ñ—Ä—ã
+    // \b      ‚Äî –≥—Ä–∞–Ω–∏—Ü–∞ —Å–ª–æ–≤–∞
+    static const std::regex re(R"(\b(19|20)\d{2}\b)");
+    return std::regex_search(input, re);
+}
+
+size_t Validator::utf8_length(const std::string& input) {
+    size_t count = 0;
+    for (unsigned char c : input) {
+        if ((c & 0xC0) != 0x80) {
+            ++count;
+        }
+    }
+    return count;
 }

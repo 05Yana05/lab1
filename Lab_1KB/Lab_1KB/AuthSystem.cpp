@@ -1,8 +1,11 @@
-#include "AuthSystem.h"
+ï»¿#include "AuthSystem.h"
 #include "User.h"
 #include "Hash.h"
 #include <iostream>
 #include <ctime>
+#include <random>
+#include <cmath>
+#include <fstream>
 
 using namespace std;
 
@@ -21,12 +24,12 @@ int AuthSystem::getValidatedChoice(int min, int max) {
         cin >> choice;
         if (cin.fail()) {
             clearInput();
-            cout << "Ââåäèòå ÷èñëî\n";
-            cout << "Âûáåðèòå äåéñòâèå (" << min << "-" << max << "): ";
+            cout << "Ð’Ð²ÐµÐ´Ð¸Ñ‚Ðµ Ñ‡Ð¸ÑÐ»Ð¾\n";
+            cout << "Ð’Ñ‹Ð±ÐµÑ€Ð¸Ñ‚Ðµ Ð´ÐµÐ¹ÑÑ‚Ð²Ð¸Ðµ (" << min << "-" << max << "): ";
         }
         else if (choice < min || choice > max) {
-            cout << "Ââåäèòå ÷èñëî îò " << min << " äî " << max << "\n";
-            cout << "Âûáåðèòå äåéñòâèå: ";
+            cout << "Ð’Ð²ÐµÐ´Ð¸Ñ‚Ðµ Ñ‡Ð¸ÑÐ»Ð¾ Ð¾Ñ‚ " << min << " Ð´Ð¾ " << max << "\n";
+            cout << "Ð’Ñ‹Ð±ÐµÑ€Ð¸Ñ‚Ðµ Ð´ÐµÐ¹ÑÑ‚Ð²Ð¸Ðµ: ";
         }
         else {
             clearInput();
@@ -35,110 +38,180 @@ int AuthSystem::getValidatedChoice(int min, int max) {
     }
 }
 
+void AuthSystem::logEvent(const std::string& event) {
+    // ÐžÑ‚ÐºÑ€Ñ‹Ð²Ð°ÐµÐ¼ Ñ„Ð°Ð¹Ð» Ð² Ñ€ÐµÐ¶Ð¸Ð¼Ðµ Ð´Ð¾Ð±Ð°Ð²Ð»ÐµÐ½Ð¸Ñ (app)
+    std::ofstream log("auth.log", std::ios::app);
+    if (!log.is_open()) return;
+
+    // ÐŸÐ¾Ð»ÑƒÑ‡Ð°ÐµÐ¼ Ñ‚ÐµÐºÑƒÑ‰ÐµÐµ Ð²Ñ€ÐµÐ¼Ñ Ð² Ñ‡Ð¸Ñ‚Ð°ÐµÐ¼Ð¾Ð¼ Ð²Ð¸Ð´Ðµ
+    time_t now = time(nullptr);
+    struct tm timeinfo;
+    localtime_s(&timeinfo, &now);
+
+    char buffer[80];
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
+
+    // ÐŸÐ¸ÑˆÐµÐ¼ ÑÑ‚Ñ€Ð¾ÐºÑƒ
+    log << "[" << buffer << "] " << event << "\n";
+}
+
+string AuthSystem::generateNonce() {
+    static const char charset[] =
+        "0123456789abcdefghijklmnopqrstuvwxyz";
+    static random_device rd;
+    static mt19937 gen(rd());
+    static uniform_int_distribution<> dist(0, sizeof(charset) - 2);
+
+    string nonce;
+    for (int i = 0; i < 16; ++i) {
+        nonce += charset[dist(gen)];
+    }
+    return nonce;
+}
+
+bool AuthSystem::checkFreshness(time_t timestamp) {
+    time_t now = time(nullptr);
+    return std::abs((long long)(now - timestamp)) <= TIMESTAMP_WINDOW;
+}
+
+bool AuthSystem::checkAndMarkNonce(const string& nonce) {
+    if (usedNonces.count(nonce)) {
+        return false;
+    }
+    usedNonces.insert(nonce);
+    return true;
+}
+
 bool AuthSystem::registerUser() {
     string username, password, confirmPassword;
 
-    cout << "\nÐÅÃÈÑÒÐÀÖÈß\n";
+    cout << "\nÐ Ð•Ð“Ð˜Ð¡Ð¢Ð ÐÐ¦Ð˜Ð¯\n";
     cout << "----------------------------\n";
 
-    cout << "Ëîãèí (3-20 ñèìâîëîâ, áóêâû, öèôðû, '_'): ";
+    cout << "Ð›Ð¾Ð³Ð¸Ð½ (Ð¼Ð¸Ð½Ð¸Ð¼ÑƒÐ¼ 3 ÑÐ¸Ð¼Ð²Ð¾Ð»Ð°): ";
     cin >> username;
 
     if (!Validator::validateUsername(username)) return false;
     if (Validator::isReservedUsername(username)) return false;
     if (db.userExists(username)) {
-        cout << "Ïîëüçîâàòåëü óæå ñóùåñòâóåò\n";
+        cout << "ÐŸÐ¾Ð»ÑŒÐ·Ð¾Ð²Ð°Ñ‚ÐµÐ»ÑŒ ÑƒÐ¶Ðµ ÑÑƒÑ‰ÐµÑÑ‚Ð²ÑƒÐµÑ‚\n";
         return false;
     }
 
-    cout << "\nÒðåáîâàíèÿ ê ïàðîëþ:\n";
-    cout << "  - 8-50 ñèìâîëîâ\n";
-    cout << "  - Çàãëàâíàÿ áóêâà\n";
-    cout << "  - Ñòðî÷íàÿ áóêâà\n";
-    cout << "  - Öèôðà\n";
-    cout << "  - Ñïåöèàëüíûé ñèìâîë\n";
-    cout << "  - Áåç ïðîáåëîâ è çàïÿòûõ\n\n";
+    cout << "\nÐ’Ð²ÐµÐ´Ð¸Ñ‚Ðµ Ð¿Ð°Ñ€Ð¾Ð»ÑŒ (Ð±ÐµÐ· Ð¾Ð³Ñ€Ð°Ð½Ð¸Ñ‡ÐµÐ½Ð¸Ð¹):\n";
 
-    cout << "Ââåäèòå ïàðîëü: ";
+    cout << "Ð’Ð²ÐµÐ´Ð¸Ñ‚Ðµ Ð¿Ð°Ñ€Ð¾Ð»ÑŒ: ";
     cin >> password;
     if (!Validator::validatePassword(password)) return false;
+    if (db.isCommonPassword(password)) {
+        cout << "Ð­Ñ‚Ð¾Ñ‚ Ð¿Ð°Ñ€Ð¾Ð»ÑŒ ÑÐ»Ð¸ÑˆÐºÐ¾Ð¼ Ñ€Ð°ÑÐ¿Ñ€Ð¾ÑÑ‚Ñ€Ð°Ð½Ñ‘Ð½. ÐŸÑ€Ð¸Ð´ÑƒÐ¼Ð°Ð¹Ñ‚Ðµ Ð´Ñ€ÑƒÐ³Ð¾Ð¹.\n";
+        return false;
+    }
 
-    cout << "Ïîäòâåðäèòå ïàðîëü: ";
+    cout << "ÐŸÐ¾Ð´Ñ‚Ð²ÐµÑ€Ð´Ð¸Ñ‚Ðµ Ð¿Ð°Ñ€Ð¾Ð»ÑŒ: ";
     cin >> confirmPassword;
     if (!Validator::validatePasswordMatch(password, confirmPassword)) return false;
 
     User newUser(username, password);
     db.saveUser(newUser);
 
-    cout << "\nÐåãèñòðàöèÿ óñïåøíà!\n";
+    logEvent("REGISTER OK: username=" + username);
+    cout << "\nÐ ÐµÐ³Ð¸ÑÑ‚Ñ€Ð°Ñ†Ð¸Ñ ÑƒÑÐ¿ÐµÑˆÐ½Ð°!\n";
     return true;
 }
+
 
 bool AuthSystem::login() {
     string username, password;
     User* user = nullptr;
 
     for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        cout << "\nÂÕÎÄ\n";
+        cout << "\nÐ’Ð¥ÐžÐ”\n";
         cout << "----------------------------\n";
-        cout << "Ïîïûòêà " << (attempt + 1) << " èç " << MAX_ATTEMPTS << "\n";
+        cout << "ÐŸÐ¾Ð¿Ñ‹Ñ‚ÐºÐ° " << (attempt + 1) << " Ð¸Ð· " << MAX_ATTEMPTS << "\n";
 
-        cout << "Ëîãèí: ";
+        cout << "Ð›Ð¾Ð³Ð¸Ð½: ";
         cin >> username;
 
         if (username.empty()) {
-            cout << "Ëîãèí íå ìîæåò áûòü ïóñòûì\n";
+            cout << "Ð›Ð¾Ð³Ð¸Ð½ Ð½Ðµ Ð¼Ð¾Ð¶ÐµÑ‚ Ð±Ñ‹Ñ‚ÑŒ Ð¿ÑƒÑÑ‚Ñ‹Ð¼\n";
+            continue;
+        }
+
+        // Ð˜Ð¼Ð¸Ñ‚Ð°Ñ†Ð¸Ñ: ÐºÐ»Ð¸ÐµÐ½Ñ‚ Ñ„Ð¾Ñ€Ð¼Ð¸Ñ€ÑƒÐµÑ‚ Ð¿Ð°ÐºÐµÑ‚ Ñ timestamp Ð¸ nonce
+        time_t clientTimestamp = time(nullptr);
+        string clientNonce = generateNonce();
+
+        // Ð˜Ð¼Ð¸Ñ‚Ð°Ñ†Ð¸Ñ: ÑÐµÑ€Ð²ÐµÑ€ Ð¿Ñ€Ð¸Ð½Ð¸Ð¼Ð°ÐµÑ‚ Ð¿Ð°ÐºÐµÑ‚ Ð¸ Ð¿Ñ€Ð¾Ð²ÐµÑ€ÑÐµÑ‚ ÐµÐ³Ð¾
+        cout << "[Ð¡Ð•Ð Ð’Ð•Ð ] ÐŸÐ¾Ð»ÑƒÑ‡ÐµÐ½ Ð¿Ð°ÐºÐµÑ‚: username=" << username
+            << ", timestamp=" << clientTimestamp
+            << ", nonce=" << clientNonce << "\n";
+
+        if (!checkFreshness(clientTimestamp)) {
+            logEvent("REPLAY DETECTED: username=" + username +
+                ", reason=stale timestamp");
+            cout << "[Ð¡Ð•Ð Ð’Ð•Ð ] ÐžÑ‚ÐºÐ°Ð·: Ð²Ñ€ÐµÐ¼ÐµÐ½Ð½Ð°Ñ Ð¼ÐµÑ‚ÐºÐ° ÑÐ»Ð¸ÑˆÐºÐ¾Ð¼ ÑÑ‚Ð°Ñ€Ð°Ñ\n";
+            continue;
+        }
+        if (!checkAndMarkNonce(clientNonce)) {
+            logEvent("REPLAY DETECTED: username=" + username +
+                ", reason=nonce reused, nonce=" + clientNonce);
+            cout << "[Ð¡Ð•Ð Ð’Ð•Ð ] ÐžÑ‚ÐºÐ°Ð·: replay detected (nonce ÑƒÐ¶Ðµ Ð¸ÑÐ¿Ð¾Ð»ÑŒÐ·Ð¾Ð²Ð°Ð»ÑÑ)\n";
             continue;
         }
 
         user = db.findUser(username);
         if (!user) {
-            cout << "Ïîëüçîâàòåëü íå íàéäåí\n";
+            cout << "ÐŸÐ¾Ð»ÑŒÐ·Ð¾Ð²Ð°Ñ‚ÐµÐ»ÑŒ Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½\n";
             continue;
         }
 
         if (user->isLocked()) {
             int remaining = user->getRemainingLockTime();
-            cout << "Àêêàóíò çàáëîêèðîâàí íà " << remaining << " ñåêóíä\n";
+            cout << "ÐÐºÐºÐ°ÑƒÐ½Ñ‚ Ð·Ð°Ð±Ð»Ð¾ÐºÐ¸Ñ€Ð¾Ð²Ð°Ð½ Ð½Ð° " << remaining << " ÑÐµÐºÑƒÐ½Ð´\n";
             delete user;
             return false;
         }
 
-        cout << "Ïàðîëü: ";
+        cout << "ÐŸÐ°Ñ€Ð¾Ð»ÑŒ: ";
         cin >> password;
 
         if (password.empty()) {
-            cout << "Ïàðîëü íå ìîæåò áûòü ïóñòûì\n";
+            cout << "ÐŸÐ°Ñ€Ð¾Ð»ÑŒ Ð½Ðµ Ð¼Ð¾Ð¶ÐµÑ‚ Ð±Ñ‹Ñ‚ÑŒ Ð¿ÑƒÑÑ‚Ñ‹Ð¼\n";
             user->failedAttempts++;
             db.saveUser(*user);
             delete user;
             continue;
         }
 
-        string hash = Hash::hashPassword(password, user->salt);
-
-        if (hash == user->passwordHash) {
+        if (Hash::verifyPassword(password, user->passwordHash)) {
             user->failedAttempts = 0;
             db.saveUser(*user);
-            cout << "\nÄîáðî ïîæàëîâàòü, " << username << "!\n";
+            logEvent("LOGIN OK: username=" + username);
+            cout << "\nÐ”Ð¾Ð±Ñ€Ð¾ Ð¿Ð¾Ð¶Ð°Ð»Ð¾Ð²Ð°Ñ‚ÑŒ, " << username << "!\n";
             delete user;
             return true;
         }
         else {
             user->failedAttempts++;
-            cout << "Íåâåðíûé ïàðîëü\n";
+            logEvent("LOGIN FAIL: username=" + username +
+                ", reason=wrong password, attempt=" +
+                std::to_string(user->failedAttempts));
+            cout << "ÐÐµÐ²ÐµÑ€Ð½Ñ‹Ð¹ Ð¿Ð°Ñ€Ð¾Ð»ÑŒ\n";
 
             if (user->failedAttempts >= MAX_ATTEMPTS) {
                 user->lockUntil = time(nullptr) + LOCK_DURATION;
                 db.saveUser(*user);
-                cout << "Ïðåâûøåíî êîëè÷åñòâî ïîïûòîê!\n";
-                cout << "Àêêàóíò çàáëîêèðîâàí íà " << LOCK_DURATION << " ñåêóíä\n";
+                logEvent("ACCOUNT LOCKED: username=" + username +
+                    ", duration=" + std::to_string(LOCK_DURATION) + "s");
+                cout << "ÐŸÑ€ÐµÐ²Ñ‹ÑˆÐµÐ½Ð¾ ÐºÐ¾Ð»Ð¸Ñ‡ÐµÑÑ‚Ð²Ð¾ Ð¿Ð¾Ð¿Ñ‹Ñ‚Ð¾Ðº!\n";
+                cout << "ÐÐºÐºÐ°ÑƒÐ½Ñ‚ Ð·Ð°Ð±Ð»Ð¾ÐºÐ¸Ñ€Ð¾Ð²Ð°Ð½ Ð½Ð° " << LOCK_DURATION << " ÑÐµÐºÑƒÐ½Ð´\n";
                 delete user;
                 return false;
             }
 
             db.saveUser(*user);
-            cout << "Îñòàëîñü ïîïûòîê: " << (MAX_ATTEMPTS - user->failedAttempts) << "\n";
+            cout << "ÐžÑÑ‚Ð°Ð»Ð¾ÑÑŒ Ð¿Ð¾Ð¿Ñ‹Ñ‚Ð¾Ðº: " << (MAX_ATTEMPTS - user->failedAttempts) << "\n";
         }
 
         delete user;
@@ -150,54 +223,58 @@ bool AuthSystem::login() {
 void AuthSystem::changePassword() {
     string username, oldPassword, newPassword, confirmPassword;
 
-    cout << "\nÑÌÅÍÀ ÏÀÐÎËß\n";
+    cout << "\nÐ¡ÐœÐ•ÐÐ ÐŸÐÐ ÐžÐ›Ð¯\n";
     cout << "----------------------------\n";
 
-    cout << "Ëîãèí: ";
+    cout << "Ð›Ð¾Ð³Ð¸Ð½: ";
     cin >> username;
 
     if (username.empty()) {
-        cout << "Ëîãèí íå ìîæåò áûòü ïóñòûì\n";
+        cout << "Ð›Ð¾Ð³Ð¸Ð½ Ð½Ðµ Ð¼Ð¾Ð¶ÐµÑ‚ Ð±Ñ‹Ñ‚ÑŒ Ð¿ÑƒÑÑ‚Ñ‹Ð¼\n";
         return;
     }
 
     User* user = db.findUser(username);
     if (!user) {
-        cout << "Ïîëüçîâàòåëü íå íàéäåí\n";
+        cout << "ÐŸÐ¾Ð»ÑŒÐ·Ð¾Ð²Ð°Ñ‚ÐµÐ»ÑŒ Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½\n";
         return;
     }
 
     if (user->isLocked()) {
-        cout << "Àêêàóíò çàáëîêèðîâàí\n";
+        cout << "ÐÐºÐºÐ°ÑƒÐ½Ñ‚ Ð·Ð°Ð±Ð»Ð¾ÐºÐ¸Ñ€Ð¾Ð²Ð°Ð½\n";
         delete user;
         return;
     }
 
-    cout << "Ñòàðûé ïàðîëü: ";
+    cout << "Ð¡Ñ‚Ð°Ñ€Ñ‹Ð¹ Ð¿Ð°Ñ€Ð¾Ð»ÑŒ: ";
     cin >> oldPassword;
 
     if (oldPassword.empty()) {
-        cout << "Ïàðîëü íå ìîæåò áûòü ïóñòûì\n";
+        cout << "ÐŸÐ°Ñ€Ð¾Ð»ÑŒ Ð½Ðµ Ð¼Ð¾Ð¶ÐµÑ‚ Ð±Ñ‹Ñ‚ÑŒ Ð¿ÑƒÑÑ‚Ñ‹Ð¼\n";
         delete user;
         return;
     }
 
-    string oldHash = Hash::hashPassword(oldPassword, user->salt);
-    if (oldHash != user->passwordHash) {
-        cout << "Íåâåðíûé ñòàðûé ïàðîëü\n";
+    if (!Hash::verifyPassword(oldPassword, user->passwordHash)) {
+        cout << "ÐÐµÐ²ÐµÑ€Ð½Ñ‹Ð¹ ÑÑ‚Ð°Ñ€Ñ‹Ð¹ Ð¿Ð°Ñ€Ð¾Ð»ÑŒ\n";
         delete user;
         return;
     }
 
-    cout << "\nÍîâûé ïàðîëü: ";
+    cout << "\nÐÐ¾Ð²Ñ‹Ð¹ Ð¿Ð°Ñ€Ð¾Ð»ÑŒ: ";
     cin >> newPassword;
 
     if (!Validator::validatePassword(newPassword)) {
         delete user;
         return;
     }
+    if (db.isCommonPassword(newPassword)) {
+        cout << "Ð­Ñ‚Ð¾Ñ‚ Ð¿Ð°Ñ€Ð¾Ð»ÑŒ ÑÐ»Ð¸ÑˆÐºÐ¾Ð¼ Ñ€Ð°ÑÐ¿Ñ€Ð¾ÑÑ‚Ñ€Ð°Ð½Ñ‘Ð½. Ð’Ñ‹Ð±ÐµÑ€Ð¸Ñ‚Ðµ Ð´Ñ€ÑƒÐ³Ð¾Ð¹.\n";
+        delete user;
+        return;
+    }
 
-    cout << "Ïîäòâåðäèòå íîâûé ïàðîëü: ";
+    cout << "ÐŸÐ¾Ð´Ñ‚Ð²ÐµÑ€Ð´Ð¸Ñ‚Ðµ Ð½Ð¾Ð²Ñ‹Ð¹ Ð¿Ð°Ñ€Ð¾Ð»ÑŒ: ";
     cin >> confirmPassword;
 
     if (!Validator::validatePasswordMatch(newPassword, confirmPassword)) {
@@ -205,67 +282,66 @@ void AuthSystem::changePassword() {
         return;
     }
 
-    User tempUser;
-    user->salt = tempUser.generateSalt();
-    user->passwordHash = Hash::hashPassword(newPassword, user->salt);
+    user->passwordHash = Hash::hashPassword(newPassword);
     user->failedAttempts = 0;
     db.saveUser(*user);
 
-    cout << "Ïàðîëü óñïåøíî èçìåíåí\n";
+    logEvent("PASSWORD CHANGED: username=" + username);
+    cout << "ÐŸÐ°Ñ€Ð¾Ð»ÑŒ ÑƒÑÐ¿ÐµÑˆÐ½Ð¾ Ð¸Ð·Ð¼ÐµÐ½ÐµÐ½\n";
     delete user;
 }
 
 void AuthSystem::deleteAccount() {
     string username, password;
 
-    cout << "\nÓÄÀËÅÍÈÅ ÀÊÊÀÓÍÒÀ\n";
+    cout << "\nÐ£Ð”ÐÐ›Ð•ÐÐ˜Ð• ÐÐšÐšÐÐ£ÐÐ¢Ð\n";
     cout << "----------------------------\n";
 
-    cout << "Ëîãèí: ";
+    cout << "Ð›Ð¾Ð³Ð¸Ð½: ";
     cin >> username;
 
     if (username.empty()) {
-        cout << "Ëîãèí íå ìîæåò áûòü ïóñòûì\n";
+        cout << "Ð›Ð¾Ð³Ð¸Ð½ Ð½Ðµ Ð¼Ð¾Ð¶ÐµÑ‚ Ð±Ñ‹Ñ‚ÑŒ Ð¿ÑƒÑÑ‚Ñ‹Ð¼\n";
         return;
     }
 
     User* user = db.findUser(username);
     if (!user) {
-        cout << "Ïîëüçîâàòåëü íå íàéäåí\n";
+        cout << "ÐŸÐ¾Ð»ÑŒÐ·Ð¾Ð²Ð°Ñ‚ÐµÐ»ÑŒ Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½\n";
         return;
     }
 
-    cout << "Ïàðîëü äëÿ ïîäòâåðæäåíèÿ: ";
+    cout << "ÐŸÐ°Ñ€Ð¾Ð»ÑŒ Ð´Ð»Ñ Ð¿Ð¾Ð´Ñ‚Ð²ÐµÑ€Ð¶Ð´ÐµÐ½Ð¸Ñ: ";
     cin >> password;
 
     if (password.empty()) {
-        cout << "Ïàðîëü íå ìîæåò áûòü ïóñòûì\n";
+        cout << "ÐŸÐ°Ñ€Ð¾Ð»ÑŒ Ð½Ðµ Ð¼Ð¾Ð¶ÐµÑ‚ Ð±Ñ‹Ñ‚ÑŒ Ð¿ÑƒÑÑ‚Ñ‹Ð¼\n";
         delete user;
         return;
     }
 
-    string hash = Hash::hashPassword(password, user->salt);
-    if (hash != user->passwordHash) {
-        cout << "Íåâåðíûé ïàðîëü\n";
+    if (!Hash::verifyPassword(password, user->passwordHash)) {
+        cout << "ÐÐµÐ²ÐµÑ€Ð½Ñ‹Ð¹ Ð¿Ð°Ñ€Ð¾Ð»ÑŒ\n";
         delete user;
         return;
     }
 
     char confirm;
-    cout << "Óäàëèòü àêêàóíò " << username << "? (y/n): ";
+    cout << "Ð£Ð´Ð°Ð»Ð¸Ñ‚ÑŒ Ð°ÐºÐºÐ°ÑƒÐ½Ñ‚ " << username << "? (y/n): ";
     cin >> confirm;
 
     while (confirm != 'y' && confirm != 'Y' && confirm != 'n' && confirm != 'N') {
-        cout << "Ââåäèòå 'y' äëÿ ïîäòâåðæäåíèÿ èëè 'n' äëÿ îòìåíû: ";
+        cout << "Ð’Ð²ÐµÐ´Ð¸Ñ‚Ðµ 'y' Ð´Ð»Ñ Ð¿Ð¾Ð´Ñ‚Ð²ÐµÑ€Ð¶Ð´ÐµÐ½Ð¸Ñ Ð¸Ð»Ð¸ 'n' Ð´Ð»Ñ Ð¾Ñ‚Ð¼ÐµÐ½Ñ‹: ";
         cin >> confirm;
     }
 
     if (confirm == 'y' || confirm == 'Y') {
         db.deleteUser(username);
-        cout << "Àêêàóíò óäàëåí\n";
+        logEvent("ACCOUNT DELETED: username=" + username);
+        cout << "ÐÐºÐºÐ°ÑƒÐ½Ñ‚ ÑƒÐ´Ð°Ð»ÐµÐ½\n";
     }
     else {
-        cout << "Îïåðàöèÿ îòìåíåíà\n";
+        cout << "ÐžÐ¿ÐµÑ€Ð°Ñ†Ð¸Ñ Ð¾Ñ‚Ð¼ÐµÐ½ÐµÐ½Ð°\n";
     }
 
     delete user;
@@ -277,14 +353,14 @@ void AuthSystem::showAllUsers() {
 
 void AuthSystem::showMenu() {
     while (true) {
-        cout << "\nÑÈÑÒÅÌÀ ÀÓÒÅÍÒÈÔÈÊÀÖÈÈ\n";
-        cout << "1. Âõîä â ñèñòåìó\n";
-        cout << "2. Ðåãèñòðàöèÿ\n";
-        cout << "3. Ñìåíèòü ïàðîëü\n";
-        cout << "4. Óäàëèòü àêêàóíò\n";
-        cout << "5. Ïîêàçàòü âñåõ ïîëüçîâàòåëåé\n";
-        cout << "6. Âûõîä\n";
-        cout << "Âûáåðèòå äåéñòâèå (1-6): ";
+        cout << "\nÐ¡Ð˜Ð¡Ð¢Ð•ÐœÐ ÐÐ£Ð¢Ð•ÐÐ¢Ð˜Ð¤Ð˜ÐšÐÐ¦Ð˜Ð˜\n";
+        cout << "1. Ð’Ñ…Ð¾Ð´ Ð² ÑÐ¸ÑÑ‚ÐµÐ¼Ñƒ\n";
+        cout << "2. Ð ÐµÐ³Ð¸ÑÑ‚Ñ€Ð°Ñ†Ð¸Ñ\n";
+        cout << "3. Ð¡Ð¼ÐµÐ½Ð¸Ñ‚ÑŒ Ð¿Ð°Ñ€Ð¾Ð»ÑŒ\n";
+        cout << "4. Ð£Ð´Ð°Ð»Ð¸Ñ‚ÑŒ Ð°ÐºÐºÐ°ÑƒÐ½Ñ‚\n";
+        cout << "5. ÐŸÐ¾ÐºÐ°Ð·Ð°Ñ‚ÑŒ Ð²ÑÐµÑ… Ð¿Ð¾Ð»ÑŒÐ·Ð¾Ð²Ð°Ñ‚ÐµÐ»ÐµÐ¹\n";
+        cout << "6. Ð’Ñ‹Ñ…Ð¾Ð´\n";
+        cout << "Ð’Ñ‹Ð±ÐµÑ€Ð¸Ñ‚Ðµ Ð´ÐµÐ¹ÑÑ‚Ð²Ð¸Ðµ (1-6): ";
 
         int choice = getValidatedChoice(1, 6);
 
@@ -295,7 +371,7 @@ void AuthSystem::showMenu() {
         case 4: deleteAccount(); break;
         case 5: showAllUsers(); break;
         case 6:
-            cout << "Äî ñâèäàíèÿ!\n";
+            cout << "Ð”Ð¾ ÑÐ²Ð¸Ð´Ð°Ð½Ð¸Ñ!\n";
             return;
         }
     }

@@ -1,10 +1,14 @@
 ﻿#include "AuthSystem.h"
 #include <iostream>
+#include <windows.h>
+#include <clocale>
 
 using namespace std;
 
 int main() {
-    setlocale(LC_ALL, "Russian");
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+    setlocale(LC_ALL, ".UTF8");
 
     cout << "СИСТЕМА АУТЕНТИФИКАЦИИ С SQLite\n";
     cout << "Файл БД: users.db\n";

@@ -1,5 +1,6 @@
 ﻿#include "Database.h"
 #include <iostream>
+#include <fstream>
 
 using namespace std;
 
@@ -12,6 +13,7 @@ Database::Database(const string& dbName) {
     else {
         cout << "База данных открыта: " << dbName << "\n";
         createTable();
+        loadCommonPasswords("top1000.txt");
     }
 }
 
@@ -34,24 +36,24 @@ bool Database::executeSQL(const string& sql) {
 }
 
 bool Database::createTable() {
-    string sql = "CREATE TABLE IF NOT EXISTS users ("
+    std::string sql =
+        "CREATE TABLE IF NOT EXISTS users ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "username TEXT UNIQUE NOT NULL, "
-        "salt TEXT NOT NULL, "
         "password_hash TEXT NOT NULL, "
         "failed_attempts INTEGER DEFAULT 0, "
         "lock_until INTEGER DEFAULT 0"
         ");";
 
     if (executeSQL(sql)) {
-        cout << "Таблица users создана/проверена\n";
+        std::cout << "Таблица users создана/проверена\n";
         return true;
     }
     return false;
 }
 
-User* Database::findUser(const string& username) {
-    string sql = "SELECT id, username, salt, password_hash, failed_attempts, lock_until "
+User* Database::findUser(const std::string& username) {
+    std::string sql = "SELECT id, username, password_hash, failed_attempts, lock_until "
         "FROM users WHERE username = '" + username + "';";
 
     sqlite3_stmt* stmt;
@@ -63,10 +65,9 @@ User* Database::findUser(const string& username) {
         User* user = new User();
         user->id = sqlite3_column_int(stmt, 0);
         user->username = (const char*)sqlite3_column_text(stmt, 1);
-        user->salt = (const char*)sqlite3_column_text(stmt, 2);
-        user->passwordHash = (const char*)sqlite3_column_text(stmt, 3);
-        user->failedAttempts = sqlite3_column_int(stmt, 4);
-        user->lockUntil = sqlite3_column_int64(stmt, 5);
+        user->passwordHash = (const char*)sqlite3_column_text(stmt, 2);
+        user->failedAttempts = sqlite3_column_int(stmt, 3);
+        user->lockUntil = sqlite3_column_int64(stmt, 4);
         sqlite3_finalize(stmt);
         return user;
     }
@@ -76,20 +77,19 @@ User* Database::findUser(const string& username) {
 }
 
 bool Database::saveUser(const User& user) {
-    string sql;
+    std::string sql;
     if (user.id == 0) {
-        sql = "INSERT INTO users (username, salt, password_hash, failed_attempts, lock_until) "
-            "VALUES ('" + user.username + "', '" + user.salt + "', '" +
-            user.passwordHash + "', " + to_string(user.failedAttempts) + ", " +
-            to_string(user.lockUntil) + ");";
+        sql = "INSERT INTO users (username, password_hash, failed_attempts, lock_until) "
+            "VALUES ('" + user.username + "', '" + user.passwordHash + "', " +
+            std::to_string(user.failedAttempts) + ", " +
+            std::to_string(user.lockUntil) + ");";
     }
     else {
         sql = "UPDATE users SET "
-            "salt = '" + user.salt + "', "
             "password_hash = '" + user.passwordHash + "', "
-            "failed_attempts = " + to_string(user.failedAttempts) + ", "
-            "lock_until = " + to_string(user.lockUntil) + " "
-            "WHERE id = " + to_string(user.id) + ";";
+            "failed_attempts = " + std::to_string(user.failedAttempts) + ", "
+            "lock_until = " + std::to_string(user.lockUntil) + " "
+            "WHERE id = " + std::to_string(user.id) + ";";
     }
     return executeSQL(sql);
 }
@@ -142,7 +142,7 @@ void Database::showAllUsers() {
             time_t lockTime = lockUntil;
             struct tm timeinfo;
             localtime_s(&timeinfo, &lockTime);
-            strftime(buffer, sizeof(buffer), "%H:%M:%S %d.%m.%Y", &timeinfo);  // ← &timeinfo
+            strftime(buffer, sizeof(buffer), "%H:%M:%S %d.%m.%Y", &timeinfo);
             cout << "Заблокирован до: " << buffer << "\n";
         }
         else {
@@ -153,6 +153,63 @@ void Database::showAllUsers() {
 
     if (count == 0) cout << "Нет зарегистрированных пользователей\n";
     sqlite3_finalize(stmt);
+}
+
+bool Database::loadCommonPasswords(const std::string& filePath) {
+    // Создаём таблицу, если её нет
+    if (!executeSQL("CREATE TABLE IF NOT EXISTS common_passwords ("
+        "password TEXT PRIMARY KEY);")) {
+        return false;
+    }
+
+    // Открываем файл
+    std::ifstream file(filePath);
+    if (!file.is_open()) {
+        std::cout << "Не удалось открыть файл с частыми паролями: "
+            << filePath << "\n";
+        return false;
+    }
+
+    sqlite3_stmt* stmt;
+    const char* sql =
+        "INSERT OR IGNORE INTO common_passwords (password) VALUES (?);";
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        std::cout << "Ошибка подготовки запроса: "
+            << sqlite3_errmsg(db) << "\n";
+        return false;
+    }
+
+    std::string line;
+    int count = 0;
+    while (std::getline(file, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (line.empty()) continue;
+
+        sqlite3_bind_text(stmt, 1, line.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_step(stmt);
+        sqlite3_reset(stmt);
+        count++;
+    }
+    sqlite3_finalize(stmt);
+
+    std::cout << "Загружено частых паролей: " << count << "\n";
+    return true;
+}
+
+bool Database::isCommonPassword(const std::string& password) {
+    if (!db) return false;
+
+    sqlite3_stmt* stmt;
+    const char* sql =
+        "SELECT 1 FROM common_passwords WHERE password = ? LIMIT 1;";
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    sqlite3_bind_text(stmt, 1, password.c_str(), -1, SQLITE_TRANSIENT);
+    bool found = (sqlite3_step(stmt) == SQLITE_ROW);
+    sqlite3_finalize(stmt);
+    return found;
 }
 
 bool Database::isOpen() const {

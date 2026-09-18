@@ -1,0 +1,12 @@
+[2026-09-17 10:42:24] ACCOUNT DELETED: username=bob
+[2026-09-17 10:42:49] REGISTER OK: username=bob
+[2026-09-17 10:43:01] LOGIN OK: username=bob
+[2026-09-17 10:43:15] LOGIN FAIL: username=bob, reason=wrong password, attempt=1
+[2026-09-17 10:43:20] LOGIN FAIL: username=bob, reason=wrong password, attempt=2
+[2026-09-17 10:43:33] LOGIN FAIL: username=bob, reason=wrong password, attempt=3
+[2026-09-17 10:43:33] ACCOUNT LOCKED: username=bob, duration=30s
+[2026-09-17 10:44:28] ACCOUNT DELETED: username=bob
+[2026-09-18 18:23:02] REGISTER OK: username=😊
+[2026-09-18 18:24:00] REGISTER OK: username=❤️❤️❤️
+[2026-09-18 18:37:38] ACCOUNT DELETED: username=😊
+[2026-09-18 18:37:52] ACCOUNT DELETED: username=❤️❤️❤️
