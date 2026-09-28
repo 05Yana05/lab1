@@ -9,16 +9,22 @@
 
 ## Архитектура
 
-```
-┌───────────────────────┐   HTTP (JSON)   ┌───────────────────────┐
-│  C++ клиент           │ ──────────────► │  Node.js сервер       │
-│  Lab_1KB.exe          │                 │  localhost:3000       │
-│                       │                 │                       │
-│  HttpClient           │ ◄────────────── │  express              │
-│  JsonHelper           │   JSON-ответ    │  argon2               │
-│  AuthSystem           │                 │  better-sqlite3       │
-│  Validator            │                 │  users.db (SQLite)    │
-└───────────────────────┘                 └───────────────────────┘
+```mermaid
+sequenceDiagram
+    participant User as Пользователь
+    participant Client as C++ клиент
+    participant Server as Node.js сервер
+    participant DB as SQLite
+
+    User->>Client: Вводит логин и пароль
+    Client->>Client: Генерирует timestamp + nonce
+    Client->>Server: POST /login (JSON)
+    Server->>Server: Проверяет timestamp и nonce
+    Server->>DB: findUser(username)
+    DB-->>Server: password_hash
+    Server->>Server: argon2.verify(password, hash)
+    Server-->>Client: JSON-ответ
+    Client-->>User: "Добро пожаловать!"
 ```
 
 Клиент **не хранит** пароли и **не работает с БД**. Всё это — на сервере. Клиент только собирает данные, шлёт HTTP-запросы и показывает ответы.
