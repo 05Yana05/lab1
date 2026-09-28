@@ -18,14 +18,15 @@ jobs:
       - name: Установить Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Установить зависимости
         working-directory: ./server
         run: |
           rm -f package-lock.json
           npm install
-          npm rebuild better-sqlite3 argon2
+          npm_config_build_from_source=true npm rebuild better-sqlite3
+          npm rebuild argon2
 
       - name: Диагностика нативных модулей
         working-directory: ./server
