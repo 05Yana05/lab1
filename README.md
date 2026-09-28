@@ -16,15 +16,16 @@ sequenceDiagram
     participant Server as Node.js сервер
     participant DB as SQLite
 
-    User->>Client: Вводит логин и пароль
+    User->>Client: Логин и пароль
     Client->>Client: Генерирует timestamp + nonce
     Client->>Server: POST /login (JSON)
     Server->>Server: Проверяет timestamp и nonce
     Server->>DB: findUser(username)
-    DB-->>Server: password_hash
+    DB-->>Server: Данные пользователя
+    Server->>Server: Проверяет блокировку (lock_until)
     Server->>Server: argon2.verify(password, hash)
-    Server-->>Client: JSON-ответ
-    Client-->>User: "Добро пожаловать!"
+    Server-->>Client: JSON-ответ (ok / error)
+    Client-->>User: "Добро пожаловать!" или ошибка
 ```
 
 Клиент **не хранит** пароли и **не работает с БД**. Всё это — на сервере. Клиент только собирает данные, шлёт HTTP-запросы и показывает ответы.
