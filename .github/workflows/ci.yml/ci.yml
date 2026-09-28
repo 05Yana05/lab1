@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-server:
+    name: Сборка и проверка Node.js сервера
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Клонировать репозиторий
+        uses: actions/checkout@v4
+
+      - name: Установить Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Установить зависимости
+        working-directory: ./server
+        run: npm install
+
+      - name: Запустить сервер
+        working-directory: ./server
+        run: |
+          node server.js &
+          sleep 5
+
+      - name: Проверить, что сервер отвечает
+        run: |
+          curl -f http://localhost:3000/users
