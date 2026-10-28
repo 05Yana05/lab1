@@ -4,6 +4,7 @@
 class AuthSystem {
 private:
     const int MAX_ATTEMPTS = 3;
+    std::string currentToken; 
 
     void clearInput();
     int getValidatedChoice(int min, int max);

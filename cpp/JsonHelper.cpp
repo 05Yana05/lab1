@@ -12,7 +12,6 @@ string JsonHelper::extractString(const string& json, const string& key) {
     }
     start += pattern.length();
 
-    // »щем закрывающую кавычку
     size_t end = json.find('"', start);
     if (end == string::npos) {
         return "";

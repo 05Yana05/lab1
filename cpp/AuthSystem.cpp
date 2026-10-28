@@ -10,13 +10,9 @@
 
 using namespace std;
 
-// Адрес сервера
 static const string SERVER_URL = "http://localhost:3000";
 
-AuthSystem::AuthSystem(const string& /*dbName*/) {
-    // Конструктор больше не открывает БД — она на сервере
-}
-
+AuthSystem::AuthSystem(const string& ) {}
 AuthSystem::~AuthSystem() {}
 
 void AuthSystem::clearInput() {
@@ -44,7 +40,6 @@ int AuthSystem::getValidatedChoice(int min, int max) {
     }
 }
 
-// Генерация случайного nonce (16 символов)
 string AuthSystem::generateNonce() {
     static const char charset[] = "0123456789abcdefghijklmnopqrstuvwxyz";
     static random_device rd;
@@ -52,92 +47,75 @@ string AuthSystem::generateNonce() {
     static uniform_int_distribution<> dist(0, sizeof(charset) - 2);
 
     string nonce;
-    for (int i = 0; i < 16; ++i) {
-        nonce += charset[dist(gen)];
-    }
+    for (int i = 0; i < 16; ++i) nonce += charset[dist(gen)];
     return nonce;
 }
 
-// Регистрация через сервер
+// ----------------------------------------------------------------------------
+// Регистрация
+// ----------------------------------------------------------------------------
 bool AuthSystem::registerUser() {
     string username, password, confirmPassword;
 
-    cout << "\nРЕГИСТРАЦИЯ\n";
-    cout << "----------------------------\n";
-
+    cout << "\nРЕГИСТРАЦИЯ\n----------------------------\n";
     cout << "Логин (минимум 3 символа): ";
-    cin >> username;
+    getline(cin, username);
 
-    if (!Validator::validateUsername(username)) return false;
-    if (Validator::isReservedUsername(username)) return false;
-
-    cout << "\nВведите пароль (без ограничений):\n";
-    cout << "Введите пароль: ";
-    cin >> password;
-
-    if (!Validator::validatePassword(password)) return false;
-
-    cout << "Подтвердите пароль: ";
-    cin >> confirmPassword;
-
-    if (!Validator::validatePasswordMatch(password, confirmPassword)) return false;
-
-    // Формируем JSON и отправляем POST /register
-    string json = JsonHelper::buildJson({
-        {"username", username},
-        {"password", password}
-        });
-
-    string response = HttpClient::post(SERVER_URL + "/register", json);
-    if (response.empty()) {
-        cout << "Ошибка: сервер не отвечает\n";
+    ValidationResult userRes = Validator::validateUsername(username);
+    if (userRes != ValidationResult::Ok) {
+        cout << validationMessage(userRes) << "\n";
         return false;
     }
+
+    cout << "Введите пароль: ";
+    getline(cin, password);
+    ValidationResult passRes = Validator::validatePassword(password);
+    if (passRes != ValidationResult::Ok) {
+        cout << validationMessage(passRes) << "\n";
+        return false;
+    }
+
+    cout << "Подтвердите пароль: ";
+    getline(cin, confirmPassword);
+    if (password != confirmPassword) {
+        cout << "Пароли не совпадают\n";
+        return false;
+    }
+
+    string json = JsonHelper::buildJson({ {"username", username}, {"password", password} });
+    string response = HttpClient::post(SERVER_URL + "/register", json);
+
+    if (response.empty()) { cout << "Ошибка: сервер не отвечает\n"; return false; }
 
     string status = JsonHelper::extractString(response, "status");
     string message = JsonHelper::extractString(response, "message");
+    if (message.empty()) message = "Неизвестная ошибка сервера";
 
-    if (status == "ok") {
-        cout << "\nРегистрация успешна!\n";
-        return true;
-    }
-    else {
-        cout << message << "\n";
-        return false;
-    }
+    cout << message << "\n";
+    return status == "ok";
 }
 
-// Вход через сервер
+// ----------------------------------------------------------------------------
+// Вход (сохраняем JWT)
+// ----------------------------------------------------------------------------
 bool AuthSystem::login() {
     string username, password;
 
     for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        cout << "\nВХОД\n";
-        cout << "----------------------------\n";
+        cout << "\nВХОД\n----------------------------\n";
         cout << "Попытка " << (attempt + 1) << " из " << MAX_ATTEMPTS << "\n";
 
         cout << "Логин: ";
-        cin >> username;
-        if (username.empty()) {
-            cout << "Логин не может быть пустым\n";
-            continue;
-        }
+        getline(cin, username);
+        if (username.empty()) { cout << "Логин не может быть пустым\n"; continue; }
 
         cout << "Пароль: ";
-        cin >> password;
-        if (password.empty()) {
-            cout << "Пароль не может быть пустым\n";
-            continue;
-        }
+        getline(cin, password);
+        if (password.empty()) { cout << "Пароль не может быть пустым\n"; continue; }
 
-        // Формируем пакет: username, password, timestamp, nonce
         time_t timestamp = time(nullptr);
         string nonce = generateNonce();
 
-        cout << "[КЛИЕНТ] Отправка запроса: timestamp=" << timestamp
-            << ", nonce=" << nonce << "\n";
-
-        // timestamp — число, поэтому JSON собираем вручную
         stringstream json;
         json << "{"
             << "\"username\":\"" << JsonHelper::escape(username) << "\","
@@ -147,139 +125,114 @@ bool AuthSystem::login() {
             << "}";
 
         string response = HttpClient::post(SERVER_URL + "/login", json.str());
-        if (response.empty()) {
-            cout << "Ошибка: сервер не отвечает\n";
-            continue;
-        }
+        if (response.empty()) { cout << "Ошибка: сервер не отвечает\n"; continue; }
 
         string status = JsonHelper::extractString(response, "status");
         string message = JsonHelper::extractString(response, "message");
+        string code = JsonHelper::extractString(response, "code");
 
         if (status == "ok") {
-            cout << "\nДобро пожаловать, " << username << "!\n";
+            currentToken = JsonHelper::extractString(response, "token");
+            cout << "\n" << message << "\n";
             return true;
         }
-        else {
-            cout << message << "\n";
-            // Если сообщение про блокировку — выходим
-            if (message.find("locked") != string::npos) {
-                return false;
-            }
-            // Иначе продолжаем попытки
+
+        cout << message << "\n";
+        if (code == "LOCKED" || code == "REPLAY" || code == "STALE_TIMESTAMP") {
+            return false;
         }
     }
-
+    cout << "Исчерпаны все попытки входа\n";
     return false;
 }
 
-// Смена пароля через сервер
+// ----------------------------------------------------------------------------
+// Смена пароля (требует токен)
+// ----------------------------------------------------------------------------
 void AuthSystem::changePassword() {
-    string username, oldPassword, newPassword, confirmPassword;
-
-    cout << "\nСМЕНА ПАРОЛЯ\n";
-    cout << "----------------------------\n";
-
-    cout << "Логин: ";
-    cin >> username;
-    if (username.empty()) {
-        cout << "Логин не может быть пустым\n";
+    if (currentToken.empty()) {
+        cout << "Сначала войдите в систему!\n";
         return;
     }
 
+    string oldPassword, newPassword, confirmPassword;
+
+    cout << "\nСМЕНА ПАРОЛЯ\n----------------------------\n";
     cout << "Старый пароль: ";
-    cin >> oldPassword;
-    if (oldPassword.empty()) {
-        cout << "Пароль не может быть пустым\n";
+    getline(cin, oldPassword);
+
+    cout << "Новый пароль: ";
+    getline(cin, newPassword);
+    ValidationResult passRes = Validator::validatePassword(newPassword);
+    if (passRes != ValidationResult::Ok) {
+        cout << validationMessage(passRes) << "\n";
         return;
     }
-
-    cout << "\nНовый пароль: ";
-    cin >> newPassword;
-    if (!Validator::validatePassword(newPassword)) return;
 
     cout << "Подтвердите новый пароль: ";
-    cin >> confirmPassword;
-    if (!Validator::validatePasswordMatch(newPassword, confirmPassword)) return;
-
-    time_t timestamp = time(nullptr);
-    string nonce = generateNonce();
+    getline(cin, confirmPassword);
+    if (newPassword != confirmPassword) {
+        cout << "Пароли не совпадают\n";
+        return;
+    }
 
     stringstream json;
     json << "{"
-        << "\"username\":\"" << JsonHelper::escape(username) << "\","
         << "\"oldPassword\":\"" << JsonHelper::escape(oldPassword) << "\","
-        << "\"newPassword\":\"" << JsonHelper::escape(newPassword) << "\","
-        << "\"timestamp\":" << timestamp << ","
-        << "\"nonce\":\"" << nonce << "\""
+        << "\"newPassword\":\"" << JsonHelper::escape(newPassword) << "\""
         << "}";
 
-    string response = HttpClient::post(SERVER_URL + "/change-password", json.str());
-    if (response.empty()) {
-        cout << "Ошибка: сервер не отвечает\n";
-        return;
-    }
+    string response = HttpClient::post(SERVER_URL + "/change-password", json.str(), currentToken);
+    if (response.empty()) { cout << "Ошибка: сервер не отвечает\n"; return; }
 
     string status = JsonHelper::extractString(response, "status");
     string message = JsonHelper::extractString(response, "message");
+    string code = JsonHelper::extractString(response, "code");
 
-    cout << message << "\n";
+    if (code == "INVALID_TOKEN" || code == "NO_TOKEN") {
+        cout << "Сессия истекла. Войдите заново.\n";
+        currentToken = "";
+    }
+    else {
+        cout << message << "\n";
+    }
 }
 
-// Удаление аккаунта через сервер
+// ----------------------------------------------------------------------------
+// Удаление аккаунта (требует токен)
+// ----------------------------------------------------------------------------
 void AuthSystem::deleteAccount() {
-    string username, password;
-
-    cout << "\nУДАЛЕНИЕ АККАУНТА\n";
-    cout << "----------------------------\n";
-
-    cout << "Логин: ";
-    cin >> username;
-    if (username.empty()) {
-        cout << "Логин не может быть пустым\n";
+    if (currentToken.empty()) {
+        cout << "Сначала войдите в систему!\n";
         return;
     }
 
+    string password;
+    cout << "\nУДАЛЕНИЕ АККАУНТА\n----------------------------\n";
     cout << "Пароль для подтверждения: ";
-    cin >> password;
-    if (password.empty()) {
-        cout << "Пароль не может быть пустым\n";
-        return;
-    }
+    getline(cin, password);
 
     char confirm;
-    cout << "Удалить аккаунт " << username << "? (y/n): ";
+    cout << "Удалить аккаунт? (y/n): ";
     cin >> confirm;
-    while (confirm != 'y' && confirm != 'Y' && confirm != 'n' && confirm != 'N') {
-        cout << "Введите 'y' для подтверждения или 'n' для отмены: ";
-        cin >> confirm;
-    }
+    clearInput();
 
     if (confirm != 'y' && confirm != 'Y') {
         cout << "Операция отменена\n";
         return;
     }
 
-    time_t timestamp = time(nullptr);
-    string nonce = generateNonce();
-
     stringstream json;
-    json << "{"
-        << "\"username\":\"" << JsonHelper::escape(username) << "\","
-        << "\"password\":\"" << JsonHelper::escape(password) << "\","
-        << "\"timestamp\":" << timestamp << ","
-        << "\"nonce\":\"" << nonce << "\""
-        << "}";
+    json << "{\"password\":\"" << JsonHelper::escape(password) << "\"}";
 
-    string response = HttpClient::post(SERVER_URL + "/delete-account", json.str());
-    if (response.empty()) {
-        cout << "Ошибка: сервер не отвечает\n";
-        return;
-    }
+    string response = HttpClient::post(SERVER_URL + "/delete-account", json.str(), currentToken);
+    if (response.empty()) { cout << "Ошибка: сервер не отвечает\n"; return; }
 
     string status = JsonHelper::extractString(response, "status");
     string message = JsonHelper::extractString(response, "message");
 
     if (status == "ok") {
+        currentToken = "";
         cout << message << "\n";
     }
     else {
@@ -287,14 +240,12 @@ void AuthSystem::deleteAccount() {
     }
 }
 
-// Показать всех пользователей (запрос GET /users)
 void AuthSystem::showAllUsers() {
     string response = HttpClient::get(SERVER_URL + "/users");
     if (response.empty()) {
         cout << "Ошибка: сервер не отвечает\n";
         return;
     }
-
     cout << "\nСырой ответ сервера:\n" << response << "\n";
 }
 
@@ -318,6 +269,7 @@ void AuthSystem::showMenu() {
         case 4: deleteAccount(); break;
         case 5: showAllUsers(); break;
         case 6:
+            currentToken = ""; 
             cout << "До свидания!\n";
             return;
         }

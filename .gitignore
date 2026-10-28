@@ -44,3 +44,7 @@ Thumbs.db
 .DS_Store
 *.tmp
 ~$*
+# === Секреты ===
+.env
+
+coverage-report/

@@ -10,9 +10,7 @@
 using namespace std;
 
 // Разбирает URL вида "http://localhost:3000/login"
-// на хост ("localhost"), порт (3000) и путь ("/login")
 static bool parseUrl(const string& url, wstring& host, INTERNET_PORT& port, wstring& path) {
-    // Убираем "http://" или "https://"
     string rest = url;
     if (rest.rfind("http://", 0) == 0) {
         rest = rest.substr(7);
@@ -26,26 +24,23 @@ static bool parseUrl(const string& url, wstring& host, INTERNET_PORT& port, wstr
         return false;
     }
 
-    // Отделяем хост от пути
     size_t slashPos = rest.find('/');
     string hostAndPort = (slashPos == string::npos) ? rest : rest.substr(0, slashPos);
     string pathStr = (slashPos == string::npos) ? "/" : rest.substr(slashPos);
 
-    // Отделяем порт от хоста (если есть)
     size_t colonPos = hostAndPort.find(':');
     string hostStr = (colonPos == string::npos) ? hostAndPort : hostAndPort.substr(0, colonPos);
     if (colonPos != string::npos) {
         port = (INTERNET_PORT)stoi(hostAndPort.substr(colonPos + 1));
     }
 
-    // Конвертируем в wstring (WinHTTP работает с широкими строками)
     host.assign(hostStr.begin(), hostStr.end());
     path.assign(pathStr.begin(), pathStr.end());
     return true;
 }
 
-// Общая функция для HTTP-запросов (GET или POST)
-static string sendRequest(const string& url, const string& body, const wstring& method) {
+// Общая функция для HTTP-запросов (GET или POST) с поддержкой токена
+static string sendRequest(const string& url, const string& body, const wstring& method, const string& token) {
     wstring host, path;
     INTERNET_PORT port = 80;
 
@@ -54,7 +49,6 @@ static string sendRequest(const string& url, const string& body, const wstring& 
         return "";
     }
 
-    // Открываем сессию WinHTTP
     HINTERNET hSession = WinHttpOpen(
         L"CppAuthClient/1.0",
         WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
@@ -66,7 +60,6 @@ static string sendRequest(const string& url, const string& body, const wstring& 
         return "";
     }
 
-    // Подключаемся к серверу
     HINTERNET hConnect = WinHttpConnect(hSession, host.c_str(), port, 0);
     if (!hConnect) {
         cerr << "[HttpClient] WinHttpConnect failed\n";
@@ -74,15 +67,14 @@ static string sendRequest(const string& url, const string& body, const wstring& 
         return "";
     }
 
-    // Открываем запрос
     HINTERNET hRequest = WinHttpOpenRequest(
         hConnect,
-        method.c_str(),         // L"GET" или L"POST"
+        method.c_str(),
         path.c_str(),
         NULL,
         WINHTTP_NO_REFERER,
         WINHTTP_DEFAULT_ACCEPT_TYPES,
-        0);                     // 0 = HTTP, WINHTTP_FLAG_SECURE = HTTPS
+        0);
     if (!hRequest) {
         cerr << "[HttpClient] WinHttpOpenRequest failed\n";
         WinHttpCloseHandle(hConnect);
@@ -101,7 +93,12 @@ static string sendRequest(const string& url, const string& body, const wstring& 
         bodyLen = (DWORD)body.size();
     }
 
-    // Отправляем запрос
+    // ДОБАВЛЯЕМ ТОКЕН, ЕСЛИ ОН ЕСТЬ
+    if (!token.empty()) {
+        wstring wToken(token.begin(), token.end());
+        headers += L"Authorization: Bearer " + wToken + L"\r\n";
+    }
+
     BOOL ok = WinHttpSendRequest(
         hRequest,
         headers.empty() ? WINHTTP_NO_ADDITIONAL_HEADERS : headers.c_str(),
@@ -119,7 +116,6 @@ static string sendRequest(const string& url, const string& body, const wstring& 
         return "";
     }
 
-    // Принимаем ответ
     ok = WinHttpReceiveResponse(hRequest, NULL);
     if (!ok) {
         cerr << "[HttpClient] WinHttpReceiveResponse failed\n";
@@ -129,7 +125,6 @@ static string sendRequest(const string& url, const string& body, const wstring& 
         return "";
     }
 
-    // Читаем тело ответа по частям
     string response;
     DWORD bytesAvailable = 0;
     do {
@@ -143,7 +138,6 @@ static string sendRequest(const string& url, const string& body, const wstring& 
         response.append(buffer.data(), bytesRead);
     } while (bytesAvailable > 0);
 
-    // Освобождаем ресурсы
     WinHttpCloseHandle(hRequest);
     WinHttpCloseHandle(hConnect);
     WinHttpCloseHandle(hSession);
@@ -151,10 +145,10 @@ static string sendRequest(const string& url, const string& body, const wstring& 
     return response;
 }
 
-string HttpClient::post(const string& url, const string& jsonBody) {
-    return sendRequest(url, jsonBody, L"POST");
+string HttpClient::post(const string& url, const string& jsonBody, const string& token) {
+    return sendRequest(url, jsonBody, L"POST", token);
 }
 
 string HttpClient::get(const string& url) {
-    return sendRequest(url, "", L"GET");
+    return sendRequest(url, "", L"GET", "");
 }

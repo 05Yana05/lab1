@@ -1,18 +1,27 @@
 {
-  "name": "auth-server",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "argon2": "^0.45.1",
-    "better-sqlite3": "^13.0.3",
-    "express": "^5.2.1"
-  }
+    "name": "auth-server",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "start": "node server.js",
+        "test": "node --test",
+        "cov": "c8 --reporter=html --reporter=text --reporter=text-summary npm test",
+        "cov:check": "c8 --check-coverage --lines 80 --branches 70 --functions 90 npm test"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "type": "commonjs",
+    "dependencies": {
+        "argon2": "^0.45.1",
+        "better-sqlite3": "^13.0.3",
+        "dotenv": "^18.0.9",
+        "express": "^5.2.1",
+        "jsonwebtoken": "^9.0.3"
+    },
+    "devDependencies": {
+        "c8": "^12.0.0",
+        "supertest": "^7.3.0"
+    }
 }
