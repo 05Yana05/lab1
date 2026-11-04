@@ -48,10 +48,9 @@ jobs:
 
           ready=0
           for i in {1..30}; do
-            # Используем ручку /register (она есть в новой версии)
-            # Отправляем POST-запрос, ожидаем 400 (т.к. тело пустое, сервер скажет "нет данных")
-            # Если сервер ответит 400, значит он жив
-            if curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:3000/register | grep -qE "400|409"; then
+            # Отправляем ПУСТОЙ POST-запрос на /login
+            # Если сервер вернул 400 (Bad Request) — значит он жив и работает
+            if curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:3000/login -H "Content-Type: application/json" -d '{}' | grep -qE "400|401"; then
               echo "Сервер готов (попытка $i)"
               ready=1
               break
