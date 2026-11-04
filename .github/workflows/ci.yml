@@ -35,6 +35,10 @@ jobs:
           node -e "require('better-sqlite3'); console.log('better-sqlite3 ok')"
           node -e "require('argon2'); console.log('argon2 ok')"
 
+      - name: Удалить старую базу данных
+        working-directory: ./server
+        run: rm -f users.db*
+
       - name: Запустить сервер и проверить ответ
         working-directory: ./server
         run: |
@@ -44,7 +48,10 @@ jobs:
 
           ready=0
           for i in {1..30}; do
-            if curl -sf http://127.0.0.1:3000/users > /dev/null; then
+            # Используем ручку /register (она есть в новой версии)
+            # Отправляем POST-запрос, ожидаем 400 (т.к. тело пустое, сервер скажет "нет данных")
+            # Если сервер ответит 400, значит он жив
+            if curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:3000/register | grep -qE "400|409"; then
               echo "Сервер готов (попытка $i)"
               ready=1
               break
@@ -65,5 +72,4 @@ jobs:
             exit 1
           fi
 
-          curl -f http://127.0.0.1:3000/users
           kill $SERVER_PID || true
