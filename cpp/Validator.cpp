@@ -14,7 +14,7 @@ string validationMessage(ValidationResult result) {
     case ValidationResult::KeyboardPattern: return "Содержит очевидную клавиатурную последовательность";
     case ValidationResult::RepeatedChars:   return "Содержит три одинаковых символа подряд";
     case ValidationResult::ContainsYear:    return "Содержит год — слишком предсказуемо";
-    case ValidationResult::Reserved:        return "Этот логин зарезервирован";
+    case ValidationResult::ReservedName:        return "Этот логин зарезервирован";
     case ValidationResult::Mismatch:        return "Пароли не совпадают";
     }
     return "Неизвестная ошибка";
@@ -24,7 +24,7 @@ ValidationResult Validator::validateUsername(const std::string& username) {
     if (username.empty()) return ValidationResult::Empty;
     if (utf8_length(username) < 3) return ValidationResult::TooShort;
     if (containsKeyboardPattern(username)) return ValidationResult::KeyboardPattern;
-    if (isReservedUsername(username)) return ValidationResult::Reserved;
+    if (isReservedUsername(username)) return ValidationResult::ReservedName;
     return ValidationResult::Ok;
 }
 

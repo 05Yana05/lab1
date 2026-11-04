@@ -9,7 +9,7 @@ enum class ValidationResult {
     KeyboardPattern,
     RepeatedChars,
     ContainsYear,
-    Reserved,
+    ReservedName,
     Mismatch
 };
 

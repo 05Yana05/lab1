@@ -8,14 +8,14 @@
 
 CXX      := g++
 CXXFLAGS := -std=c++17 -Wall -I.
-LDLIBS   := -lsodium -lwinhttp -lws2_32
+LDLIBS   := -lsodium -lwinhttp -lws2_32 -lcrypt32
 
 BUILD_DIR := build
 BIN_DIR   := bin
 TARGET    := $(BIN_DIR)/auth-client.exe
 
 SRCS := AuthSystem.cpp HttpClient.cpp JsonHelper.cpp \
-        Lab_1KB.cpp Validator.cpp
+        Lab_1KB.cpp Validator.cpp CryptoHelper.cpp
 OBJS := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(SRCS))
 
 # ---- Standard build ----
